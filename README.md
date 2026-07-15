@@ -45,48 +45,31 @@ cd my-worker
 npm run secrets
 ```
 
-`npm run secrets` (a thin wrapper around `npx ai-gateway-webhooks secrets`) generates the `whsec_…` webhook signing secret, writes it to `.dev.vars` for local development, and uploads it with `wrangler secret put`. Add `--with-artifacts` to also generate the artifact URL signing secret, or `--local-only` to skip the upload. The starter's README covers the optional R2 artifact setup.
+The template is a complete Worker: an example route that queues a prediction, the Workflow bindings already configured, and scripts for `dev`, `deploy`, and `secrets`. Its README covers the optional R2 artifact setup.
 
-## Add to an existing Worker
+`npm run secrets` (a thin wrapper around `npx ai-gateway-webhooks secrets`) generates the `whsec_…` webhook signing secret, writes it to `.dev.vars` for local development, and uploads it with `wrangler secret put`. Add `--with-artifacts` to also generate the artifact URL signing secret, or `--local-only` to skip the upload.
 
-1. Install the package: `npm install ai-gateway-webhooks`.
-2. Export the Workflow classes from your Worker entrypoint:
+Already have a Worker? `npm install ai-gateway-webhooks`, re-export the two Workflow classes from your entrypoint —
 
-   ```ts
-   export {
-     PredictionWorkflow,
-     WebhookDeliveryWorkflow,
-   } from "ai-gateway-webhooks";
-   ```
+```ts
+export {
+  PredictionWorkflow,
+  WebhookDeliveryWorkflow,
+} from "ai-gateway-webhooks";
+```
 
-3. Add the bindings below to `wrangler.jsonc`, then rerun `wrangler types`:
+— copy the `ai` and `workflows` bindings from the [starter's `wrangler.jsonc`](./templates/starter/wrangler.jsonc) into yours, rerun `wrangler types`, and run `npx ai-gateway-webhooks secrets`.
 
-   ```jsonc
-   "ai": { "binding": "AI" },
-   "workflows": [
-     {
-       "binding": "AI_PREDICTIONS",
-       "name": "my-worker-predictions",
-       "class_name": "PredictionWorkflow"
-     },
-     {
-       "binding": "AI_WEBHOOK_DELIVERIES",
-       "name": "my-worker-deliveries",
-       "class_name": "WebhookDeliveryWorkflow"
-     }
-   ]
-   ```
+## Bindings
 
-4. Provision the webhook signing secret: `npx ai-gateway-webhooks secrets`.
-
-Required conventional bindings:
+The package finds its resources by conventional binding names:
 
 - `AI`: Workers AI binding.
 - `AI_PREDICTIONS`: Workflow bound to `PredictionWorkflow`.
 - `AI_WEBHOOK_DELIVERIES`: Workflow bound to `WebhookDeliveryWorkflow`.
 - `AI_WEBHOOK_SECRET`: secret generated as `whsec_<base64>`.
 
-Optional artifact bindings:
+Optional, for artifact storage:
 
 - `AI_ARTIFACTS`: R2 bucket.
 - `AI_ARTIFACT_SECRET`: independent artifact URL signing secret.
