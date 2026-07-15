@@ -223,6 +223,8 @@ Webhook delivery is isolated in `WebhookDeliveryWorkflow`, so a slow or unavaila
 
 Webhook URLs must be credential-free HTTPS URLs. URLs on the deployment's own `AI_WEBHOOK_PUBLIC_URL` origin are rejected to prevent loops. Inference errors are converted to a generic public error without stack traces, provider response bodies, credentials, or secret-bearing messages.
 
+Because failure events are sanitized, they intentionally carry no diagnostic detail. To find out why a prediction failed, look up its `gateway_log_id` in your AI Gateway logs (Cloudflare dashboard → AI → AI Gateway → your gateway → Logs), which record the underlying provider request and error.
+
 See Cloudflare's [Workflow limits](https://developers.cloudflare.com/workflows/reference/limits/) and [AI Gateway Worker binding methods](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/) for current platform details.
 
 ## Repository layout
