@@ -1,6 +1,6 @@
 {
   "name": "ai-gateway-webhooks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Durable, signed lifecycle webhooks for Cloudflare AI Gateway inference",
   "type": "module",
   "license": "MIT",
