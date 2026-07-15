@@ -100,7 +100,7 @@ describe("artifact normalization and downloads", () => {
     expect(new URL(output.url).pathname).toContain(ARTIFACT_PATH_PREFIX);
   });
 
-  it("keeps a ReadableStream streaming while detecting its content type", async () => {
+  it("buffers a ReadableStream (R2 requires a known length) and detects its content type", async () => {
     let storedBody: unknown;
     const bucket = {
       async put(key: string, value: unknown) {
@@ -110,9 +110,8 @@ describe("artifact normalization and downloads", () => {
     } as R2Bucket;
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(
-          new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-        );
+        controller.enqueue(new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+        controller.enqueue(new Uint8Array([0x0d, 0x0a, 0x1a, 0x0a]));
         controller.close();
       },
     });
@@ -127,8 +126,38 @@ describe("artifact normalization and downloads", () => {
       null,
       new Date(),
     );
-    expect(storedBody).toBeInstanceOf(ReadableStream);
+    expect(storedBody).toBeInstanceOf(ArrayBuffer);
+    expect(new Uint8Array(storedBody as ArrayBuffer)).toEqual(
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
     expect(output.content_type).toBe("image/png");
+  });
+
+  it("rejects streams larger than the artifact buffering limit", async () => {
+    const bucket = {
+      async put(key: string, _value: unknown) {
+        return r2Object(key, 0, "application/octet-stream");
+      },
+    } as R2Bucket;
+    const oversized = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // 8 MiB per chunk; the limit trips long before memory matters.
+        controller.enqueue(new Uint8Array(8 * 1024 * 1024));
+      },
+    });
+    await expect(
+      storeArtifact(
+        {
+          AI_ARTIFACTS: bucket,
+          AI_ARTIFACT_SECRET: "artifact-secret",
+          AI_WEBHOOK_PUBLIC_URL: "https://worker.example",
+        },
+        "pred_oversized",
+        oversized,
+        null,
+        new Date(),
+      ),
+    ).rejects.toThrow(/artifact limit/);
   });
 
   it("rejects tampering and expired artifact URLs", async () => {

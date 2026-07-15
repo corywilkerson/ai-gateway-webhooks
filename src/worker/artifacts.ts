@@ -24,6 +24,14 @@ type ArtifactBody =
   ReadableStream<Uint8Array> | ArrayBuffer | Uint8Array | Blob | string;
 
 /**
+ * Streams are buffered in Worker memory before storage — R2's put() rejects
+ * streams of unknown length, and AI binding outputs never declare one. The
+ * cap bounds that buffering; larger outputs fail the prediction rather than
+ * risk exhausting isolate memory.
+ */
+export const ARTIFACT_STREAM_LIMIT = 64 * 1024 * 1024;
+
+/**
  * Write an inference output to R2 and return a time-limited, signed URL that
  * points back at this Worker's artifact route (see artifact-request.ts).
  *
@@ -50,11 +58,12 @@ export async function storeArtifact(
   let contentType = normalizeContentType(suppliedContentType);
 
   if (body instanceof ReadableStream) {
-    // Streams can only be read once, so peek at the first chunk for content
-    // sniffing and hand R2 a replacement stream that replays it.
-    const peeked = await peekAndReplayStream(body);
-    value = peeked.stream;
-    contentType ??= detectContentType(peeked.prefix);
+    // Buffer the stream: R2 cannot accept it directly (see
+    // ARTIFACT_STREAM_LIMIT), and buffering also gives us the leading bytes
+    // for content sniffing.
+    const bytes = await bufferStream(body);
+    value = bytes.buffer;
+    contentType ??= detectContentType(bytes.subarray(0, 16));
   } else if (typeof body === "string") {
     // Strings only arrive here as JSON that was too large to inline.
     value = body;
@@ -110,42 +119,42 @@ function normalizeContentType(value: string | null): string | null {
   return normalized || null;
 }
 
-/**
- * Read the first chunk of a stream (for content-type sniffing) and return a
- * new stream that yields that chunk first, then the rest of the source —
- * so the caller still sees the complete body.
- */
-async function peekAndReplayStream(
+async function bufferStream(
   source: ReadableStream<Uint8Array>,
-): Promise<{ prefix: Uint8Array; stream: ReadableStream<Uint8Array> }> {
+): Promise<Uint8Array<ArrayBuffer>> {
   const reader = source.getReader();
-  const first = await reader.read();
-  const prefix = first.done ? new Uint8Array() : first.value.subarray(0, 16);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
 
-  let firstPending = !first.done;
-  const stream = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        if (firstPending && !first.done) {
-          firstPending = false;
-          controller.enqueue(first.value);
-          return;
-        }
+  try {
+    while (true) {
+      const chunk = await reader.read();
 
-        const chunk = await reader.read();
-
-        if (chunk.done) {
-          controller.close();
-        } else {
-          controller.enqueue(chunk.value);
-        }
-      } catch (error) {
-        controller.error(error);
+      if (chunk.done) {
+        break;
       }
-    },
-    async cancel(reason) {
-      await reader.cancel(reason);
-    },
-  });
-  return { prefix, stream };
+
+      total += chunk.value.byteLength;
+
+      if (total > ARTIFACT_STREAM_LIMIT) {
+        await reader.cancel();
+        throw new Error(
+          `streamed output exceeds the ${ARTIFACT_STREAM_LIMIT}-byte artifact limit`,
+        );
+      }
+
+      chunks.push(chunk.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return bytes;
 }

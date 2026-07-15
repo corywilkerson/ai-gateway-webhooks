@@ -180,7 +180,7 @@ The delivery Workflow does not follow redirects and does not read or log respons
 
 ## Artifacts
 
-JSON-serializable output up to 256 KiB is included directly. Binary output and larger JSON are streamed to R2 when the optional artifact storage is configured. Common PNG, JPEG, GIF, WebP, WAV, MP3, Ogg, FLAC, and MP4 types are detected from headers or magic bytes. Other binary data uses `application/octet-stream`.
+JSON-serializable output up to 256 KiB is included directly. Binary output and larger JSON are stored in R2 when the optional artifact storage is configured. Streamed outputs are buffered in Worker memory before storage (R2 requires a known length) and are capped at 64 MiB; larger streams fail the prediction. Common PNG, JPEG, GIF, WebP, WAV, MP3, Ogg, FLAC, and MP4 types are detected from headers or magic bytes. Other binary data uses `application/octet-stream`.
 
 Artifact output looks like:
 
