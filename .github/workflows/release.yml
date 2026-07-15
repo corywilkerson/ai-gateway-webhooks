@@ -1,0 +1,38 @@
+name: Release
+
+# Publishes to npm when a GitHub Release is published.
+# Auth uses npm trusted publishing (OIDC) — no NPM_TOKEN secret required.
+# One-time setup on npmjs.com: package Settings → Trusted publisher →
+# GitHub Actions, repository corywilkerson/ai-gateway-webhooks,
+# workflow filename release.yml.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run check
+      - run: npm test
+      - name: Verify tag matches package.json version
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$pkg" != "$tag" ]; then
+            echo "package.json is $pkg but the release tag is $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+      - run: npm publish --provenance --access public
