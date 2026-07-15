@@ -1,6 +1,14 @@
 # ai-gateway-webhooks
 
-Durable, signed lifecycle webhooks for Cloudflare AI Gateway. The package keeps the familiar `env.AI.run()` shape, returns a stable prediction handle immediately, runs inference in a Cloudflare Workflow, and delivers webhook events from a separate Workflow.
+Durable, signed lifecycle webhooks for Cloudflare AI Gateway.
+
+`env.AI.run()` holds a request open until inference finishes — painful for slow models, long generations, or any caller that doesn't want to wait. This package makes inference fire-and-forget while keeping the familiar `run()` shape: queue a prediction, respond immediately, and have the result delivered to your webhook.
+
+How it works:
+
+1. `ai.run(model, input, { webhook })` validates the request, queues a Cloudflare Workflow, and immediately returns `{ id, status: "queued", createdAt }`.
+2. The Workflow runs inference through AI Gateway, optionally announcing `prediction.started` first.
+3. A separate delivery Workflow POSTs the signed `prediction.succeeded` or `prediction.failed` event to your URL, retrying for up to ~34 hours if your receiver is down.
 
 ```ts
 import { createAsyncAI } from "ai-gateway-webhooks";
@@ -41,10 +49,17 @@ npm run secrets
 
 ## Add to an existing Worker
 
-Setup is three small steps — no codemods involved:
+1. Install the package: `npm install ai-gateway-webhooks`.
+2. Export the Workflow classes from your Worker entrypoint:
 
-1. Install the package and export the Workflow classes from your entrypoint.
-2. Add the bindings below to `wrangler.jsonc`, then rerun `wrangler types`:
+   ```ts
+   export {
+     PredictionWorkflow,
+     WebhookDeliveryWorkflow,
+   } from "ai-gateway-webhooks";
+   ```
+
+3. Add the bindings below to `wrangler.jsonc`, then rerun `wrangler types`:
 
    ```jsonc
    "ai": { "binding": "AI" },
@@ -62,16 +77,7 @@ Setup is three small steps — no codemods involved:
    ]
    ```
 
-3. Provision the webhook signing secret: `npx ai-gateway-webhooks secrets`.
-
-Your Worker entrypoint must export the Workflow classes:
-
-```ts
-export {
-  PredictionWorkflow,
-  WebhookDeliveryWorkflow,
-} from "ai-gateway-webhooks";
-```
+4. Provision the webhook signing secret: `npx ai-gateway-webhooks secrets`.
 
 Required conventional bindings:
 
@@ -164,6 +170,8 @@ export default {
 
 The helper accepts at most 1 MiB by default, preventing an unbounded public request from consuming Worker memory. `verifyWebhookSignature()` remains available when a framework has already provided the exact raw body.
 
+Verifying signatures on your receiver is technically optional — events arrive whether or not you check them. But your webhook URL is a public, unauthenticated endpoint: without verification, anyone who discovers it can forge a `prediction.succeeded` event with any payload they like. Use `parseWebhook()` unless you have a specific reason not to.
+
 Signatures follow the Standard Webhooks shape. The signed content is `{webhook-id}.{webhook-timestamp}.{exact raw body}`, using HMAC-SHA256.
 
 Receivers must deduplicate by `webhook-id`. Delivery is at least once, not exactly once; duplicates and rare out-of-order events are possible. Return any `2xx` only after the event is durably accepted.
@@ -172,7 +180,7 @@ The delivery Workflow does not follow redirects and does not read or log respons
 
 ## Artifacts
 
-JSON-serializable output up to 256 KiB is included directly. Binary output and larger JSON are streamed to R2 when the optional adapter is configured. Common PNG, JPEG, GIF, WebP, WAV, MP3, Ogg, FLAC, and MP4 types are detected from headers or magic bytes. Other binary data uses `application/octet-stream`.
+JSON-serializable output up to 256 KiB is included directly. Binary output and larger JSON are streamed to R2 when the optional artifact storage is configured. Common PNG, JPEG, GIF, WebP, WAV, MP3, Ogg, FLAC, and MP4 types are detected from headers or magic bytes. Other binary data uses `application/octet-stream`.
 
 Artifact output looks like:
 
@@ -225,3 +233,7 @@ See Cloudflare's [Workflow limits](https://developers.cloudflare.com/workflows/r
 - `templates/starter/` contains the standalone starter Worker.
 
 The Worker and CLI have separate build entrypoints, preventing Node-only CLI code from entering the deployed Worker bundle.
+
+## License
+
+[MIT](./LICENSE)
