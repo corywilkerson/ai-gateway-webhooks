@@ -1,0 +1,55 @@
+{
+  "name": "ai-gateway-webhooks",
+  "version": "0.1.0",
+  "description": "Durable, signed lifecycle webhooks for Cloudflare AI Gateway inference",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corywilkerson/ai-gateway-webhooks.git"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "ai-gateway-webhooks": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "latest",
+    "@cloudflare/workers-types": "latest",
+    "@types/node": "latest",
+    "prettier": "3.9.5",
+    "tsup": "latest",
+    "typescript": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers-ai",
+    "ai-gateway",
+    "workflows",
+    "webhooks"
+  ]
+}

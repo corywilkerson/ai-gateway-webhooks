@@ -1,0 +1,20 @@
+{
+  "name": "ai-gateway-webhooks-starter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "secrets": "ai-gateway-webhooks secrets",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "ai-gateway-webhooks": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "wrangler": "latest"
+  }
+}

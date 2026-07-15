@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ai-gateway-webhooks-starter",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
+  "workflows": [
+    {
+      "binding": "AI_PREDICTIONS",
+      "name": "ai-gateway-webhooks-starter-predictions",
+      "class_name": "PredictionWorkflow",
+    },
+    {
+      "binding": "AI_WEBHOOK_DELIVERIES",
+      "name": "ai-gateway-webhooks-starter-deliveries",
+      "class_name": "WebhookDeliveryWorkflow",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 },
+  },
+}
